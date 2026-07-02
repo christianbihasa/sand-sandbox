@@ -77,67 +77,171 @@ export default function SandSandbox() {
           const bottomLeft = (y + 1) * width + (x - 1);
           const bottomRight = (y + 1) * width + (x + 1);
 
-          if (
-            y + 1 < height &&
-            currentGrid[below] === 0 &&
-            nextGrid[below] === 0
-          ) {
-            nextGrid[below] = 1;
-          } else if (
-            y + 1 < height &&
-            x - 1 >= 0 &&
-            currentGrid[bottomLeft] === 0 &&
-            nextGrid[bottomLeft] === 0
-          ) {
-            nextGrid[bottomLeft] = 1;
-          } else if (
-            y + 1 < height &&
-            x + 1 < width &&
-            currentGrid[bottomRight] === 0 &&
-            nextGrid[bottomRight] === 0
-          ) {
-            nextGrid[bottomRight] = 1;
-          } else {
+          // 1. Vector Direct Fall / Sink check
+          if (y + 1 < height) {
+            if (nextGrid[below] === 0) {
+              nextGrid[below] = 1;
+              continue;
+            } else if (nextGrid[below] === 2) {
+              nextGrid[below] = 1;
+              nextGrid[idx] = 2; // DISPLACE: Swap water upward into old space
+              continue;
+            }
+          }
+
+          // 2. Vector Diagonal Slide check (Randomized to eliminate directional bias)
+          const slideLeftFirst = Math.random() > 0.5;
+          let moved = false;
+
+          if (y + 1 < height) {
+            if (slideLeftFirst) {
+              if (x - 1 >= 0 && nextGrid[bottomLeft] === 0) {
+                nextGrid[bottomLeft] = 1;
+                moved = true;
+              } else if (x - 1 >= 0 && nextGrid[bottomLeft] === 2) {
+                nextGrid[bottomLeft] = 1;
+                nextGrid[idx] = 2;
+                moved = true;
+              } else if (x + 1 < width && nextGrid[bottomRight] === 0) {
+                nextGrid[bottomRight] = 1;
+                moved = true;
+              } else if (x + 1 < width && nextGrid[bottomRight] === 2) {
+                nextGrid[bottomRight] = 1;
+                nextGrid[idx] = 2;
+                moved = true;
+              }
+            } else {
+              if (x + 1 < width && nextGrid[bottomRight] === 0) {
+                nextGrid[bottomRight] = 1;
+                moved = true;
+              } else if (x + 1 < width && nextGrid[bottomRight] === 2) {
+                nextGrid[bottomRight] = 1;
+                nextGrid[idx] = 2;
+                moved = true;
+              } else if (x - 1 >= 0 && nextGrid[bottomLeft] === 0) {
+                nextGrid[bottomLeft] = 1;
+                moved = true;
+              } else if (x - 1 >= 0 && nextGrid[bottomLeft] === 2) {
+                nextGrid[bottomLeft] = 1;
+                nextGrid[idx] = 2;
+                moved = true;
+              }
+            }
+          }
+
+          if (moved) continue;
+
+          // 3. Obstructed: Rest in place (preserving slot if water hasn't claimed it)
+          if (nextGrid[idx] === 0) {
             nextGrid[idx] = 1;
           }
         }
 
         // Water physics
-        if (type === 2) {
+        else if (type === 2) {
+          // If a sand displacement calculation from a previous loop pass already updated
+          // this slot position, respect the change and stop further liquid movement.
+          if (nextGrid[idx] !== 0) continue;
+
           const below = (y + 1) * width + x;
+          const bottomLeft = (y + 1) * width + (x - 1);
+          const bottomRight = (y + 1) * width + (x + 1);
           const left = y * width + (x - 1);
           const right = y * width + (x + 1);
 
+          // 1. Liquid Gravity Fall
           if (
             y + 1 < height &&
             currentGrid[below] === 0 &&
             nextGrid[below] === 0
           ) {
             nextGrid[below] = 2;
-          } else {
-            const spreadLeft = Math.random() > 0.5;
-            if (
-              spreadLeft &&
-              x - 1 >= 0 &&
-              currentGrid[left] === 0 &&
-              nextGrid[left] === 0
-            ) {
+            continue;
+          }
+
+          // 2. Liquid Diagonal Flow
+          const flowLeftFirst = Math.random() > 0.5;
+          let fluidMoved = false;
+
+          if (y + 1 < height) {
+            if (flowLeftFirst) {
+              if (
+                x - 1 >= 0 &&
+                currentGrid[bottomLeft] === 0 &&
+                nextGrid[bottomLeft] === 0
+              ) {
+                nextGrid[bottomLeft] = 2;
+                fluidMoved = true;
+              } else if (
+                x + 1 < width &&
+                currentGrid[bottomRight] === 0 &&
+                nextGrid[bottomRight] === 0
+              ) {
+                nextGrid[bottomRight] = 2;
+                fluidMoved = true;
+              }
+            } else {
+              if (
+                x + 1 < width &&
+                currentGrid[bottomRight] === 0 &&
+                nextGrid[bottomRight] === 0
+              ) {
+                nextGrid[bottomRight] = 2;
+                fluidMoved = true;
+              } else if (
+                x - 1 >= 0 &&
+                currentGrid[bottomLeft] === 0 &&
+                nextGrid[bottomLeft] === 0
+              ) {
+                nextGrid[bottomLeft] = 2;
+                fluidMoved = true;
+              }
+            }
+          }
+
+          if (fluidMoved) continue;
+
+          // 3. Lateral Equalization (Liquid spreading completely flat across horizons)
+          if (flowLeftFirst) {
+            if (x - 1 >= 0 && currentGrid[left] === 0 && nextGrid[left] === 0) {
               nextGrid[left] = 2;
+              fluidMoved = true;
             } else if (
               x + 1 < width &&
               currentGrid[right] === 0 &&
               nextGrid[right] === 0
             ) {
               nextGrid[right] = 2;
-            } else {
-              nextGrid[idx] = 2;
+              fluidMoved = true;
+            }
+          } else {
+            if (
+              x + 1 < width &&
+              currentGrid[right] === 0 &&
+              nextGrid[right] === 0
+            ) {
+              nextGrid[right] = 2;
+              fluidMoved = true;
+            } else if (
+              x - 1 >= 0 &&
+              currentGrid[left] === 0 &&
+              nextGrid[left] === 0
+            ) {
+              nextGrid[left] = 2;
+              fluidMoved = true;
             }
           }
+
+          if (fluidMoved) continue;
+
+          // 4. Stagnant: Pool in place
+          nextGrid[idx] = 2;
         }
       }
     }
   };
 
+  // Rendering Loop (Direct Pixel Manipulation)
   const drawGrid = (ctx, sim) => {
     const { width, height, cellSize, currentGrid } = sim;
     const imgData = ctx.createImageData(width * cellSize, height * cellSize);
@@ -149,7 +253,7 @@ export default function SandSandbox() {
 
         let r = 17,
           g = 22,
-          b = 37; // Default #111625 Base
+          b = 37; // Default #111625 Base Canvas Color
         if (cellType === 1) {
           r = 234;
           g = 179;
@@ -161,10 +265,10 @@ export default function SandSandbox() {
           b = 246;
         } // Blue Water
         if (cellType === 3) {
-          r = 100;
-          g = 116;
-          b = 139;
-        } // Slate Wall
+          r = 148;
+          g = 163;
+          b = 184;
+        } // Slate Structural Wall
 
         for (let cy = 0; cy < cellSize; cy++) {
           for (let cx = 0; cx < cellSize; cx++) {
@@ -245,12 +349,12 @@ export default function SandSandbox() {
 
   return (
     <div className="flex flex-col items-center justify-center p-4 min-h-screen bg-arcade-bg text-white font-mono">
-      <div className="mb-4 text-center">
+      <div className="mb-4 text-center select-none">
         <h1 className="text-xl tracking-widest text-emerald-400 font-bold mb-1">
           FALLING SAND SANDBOX
         </h1>
         <p className="text-xs text-gray-400">
-          EVERY PIXEL IS AN AUTOMATED MATRIX CELL
+          DENSITY DISPLACEMENT ENGINE STACK ACTIVE
         </p>
       </div>
 
@@ -268,7 +372,7 @@ export default function SandSandbox() {
         className="w-full max-w-2xl aspect-[4/3] bg-gray-950 rounded border border-gray-800 shadow-2xl cursor-crosshair touch-none"
       />
 
-      <div className="flex gap-2 mt-4 bg-gray-900/50 p-2 rounded border border-gray-800/60 text-xs">
+      <div className="flex flex-wrap gap-2 mt-4 bg-gray-900/50 p-2 rounded border border-gray-800/60 text-xs justify-center">
         {[
           ["SAND", 1, "text-yellow-400 border-yellow-500/20 bg-yellow-500/5"],
           ["WATER", 2, "text-blue-400 border-blue-500/20 bg-blue-500/5"],
@@ -278,10 +382,10 @@ export default function SandSandbox() {
           <button
             key={id}
             onClick={() => setActiveElement(id)}
-            className={`px-3 py-1.5 border rounded tracking-wider transition-all active:scale-95 cursor-pointer ${style} ${
+            className={`px-4 py-2 border rounded tracking-widest transition-all active:scale-95 cursor-pointer font-bold ${style} ${
               activeElement === id
-                ? "ring-1 ring-offset-2 ring-offset-slate-950 ring-emerald-500 font-bold"
-                : "opacity-60"
+                ? "ring-1 ring-offset-2 ring-offset-slate-950 ring-emerald-500 opacity-100"
+                : "opacity-40"
             }`}
           >
             {name}

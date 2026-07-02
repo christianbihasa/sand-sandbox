@@ -1,0 +1,62 @@
+name: Automated Live Preview Capture
+
+on:
+  deployment_status:
+
+jobs:
+  screenshot:
+    if: github.event.deployment_status.state == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout Game Repository Code
+        uses: actions/checkout@v4
+
+      - name: Initialize Node.js Environment
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Playwright Automation Core
+        run: |
+          npm install playwright  
+          npx playwright install chromium
+
+      - name: Generate Headless Browser Capture Script
+        run: |
+          cat << 'EOF' > capture.cjs
+          const { chromium } = require('playwright-core');
+          (async () => {
+            const browser = await chromium.launch();
+            const page = await browser.newPage();
+            
+            await page.setViewportSize({ width: 1000, height: 1300 });
+            
+            await page.goto('https://christianbihasa.github.io/extreme-wordle', {
+              waitUntil: 'networkidle'
+            });
+            
+            await new Promise(resolve => setTimeout(resolve, 4000));
+            
+            await page.screenshot({ path: 'preview.png' });
+            await browser.close();
+          })();
+          EOF
+
+      - name: Execute Capture Execution Screen Vector
+        run: node capture.cjs
+
+      - name: Clean Up Workspaces Script Engine
+        run: rm capture.cjs
+
+      - name: Commit and Push Updated Preview Asset
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          git add preview.png
+
+          git commit -m "chore: automated viewport sync preview image [skip ci]" || exit 0
+          git push
