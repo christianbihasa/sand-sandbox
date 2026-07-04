@@ -42,7 +42,7 @@ export class SandEngine {
     nextGrid.fill(0);
     nextVariantGrid.fill(0);
 
-    // Retain solid static walls along with their visual textures across frames
+    // Retain solid static walls and their textures across frames
     for (let i = 0; i < currentGrid.length; i++) {
       if (currentGrid[i] === 3) {
         nextGrid[i] = 3;
@@ -62,138 +62,111 @@ export class SandEngine {
 
         if (type === 0 || type === 3) continue;
 
-        // Sand physics (With Texture Preservation)
+        // Sand physics 
         if (type === 1) {
           const below = (y + 1) * width + x;
           const bottomLeft = (y + 1) * width + (x - 1);
           const bottomRight = (y + 1) * width + (x + 1);
+          let moved = false;
 
-          // 1. Vertical Fall / Displacement Sinking
+          // 1. Vertical Fall / Sinking Displacement
           if (y + 1 < height) {
-            if (nextGrid[below] === 0 && currentGrid[below] === 0) {
+            if (nextGrid[below] === 0) {
+              // Space below is vacant in the future frame (either air, or water left it)
               nextGrid[below] = 1;
-              nextVariantGrid[below] = currentVariantGrid[idx]; // Shading travels down
-              continue;
-            } else if (currentGrid[below] === 2 || nextGrid[below] === 2) {
-              // Displace water upward: identify which buffer contains the active fluid shade
-              const waterVariant =
-                nextGrid[below] === 2
-                  ? nextVariantGrid[below]
-                  : currentVariantGrid[below];
+              nextVariantGrid[below] = currentVariantGrid[idx];
+              moved = true;
+            } else if (nextGrid[below] === 2) {
+              // Water is trapped here for the next frame. Displace it up!
+              const waterVariant = nextVariantGrid[below];
               nextGrid[below] = 1;
-              nextVariantGrid[below] = currentVariantGrid[idx]; // Sand sinks
+              nextVariantGrid[below] = currentVariantGrid[idx];
               nextGrid[idx] = 2;
-              nextVariantGrid[idx] = waterVariant; // Water rises
-              continue;
+              nextVariantGrid[idx] = waterVariant;
+              moved = true;
             }
           }
 
-          // 2. Diagonal Fall / Slide Check
-          const slideLeftFirst = Math.random() > 0.5;
-          let moved = false;
+          if (moved) continue;
 
+          // 2. Diagonal Slide / Sinking Displacement
           if (y + 1 < height) {
+            const slideLeftFirst = Math.random() > 0.5;
+
             if (slideLeftFirst) {
-              if (
-                x - 1 >= 0 &&
-                nextGrid[bottomLeft] === 0 &&
-                currentGrid[bottomLeft] === 0
-              ) {
+              // Try Left Diagonal
+              if (x - 1 >= 0 && nextGrid[bottomLeft] === 0) {
                 nextGrid[bottomLeft] = 1;
                 nextVariantGrid[bottomLeft] = currentVariantGrid[idx];
                 moved = true;
-              } else if (
-                x - 1 >= 0 &&
-                (currentGrid[bottomLeft] === 2 || nextGrid[bottomLeft] === 2)
-              ) {
-                const waterVariant =
-                  nextGrid[bottomLeft] === 2
-                    ? nextVariantGrid[bottomLeft]
-                    : currentVariantGrid[bottomLeft];
+              } else if (x - 1 >= 0 && nextGrid[bottomLeft] === 2) {
+                const waterVariant = nextVariantGrid[bottomLeft];
                 nextGrid[bottomLeft] = 1;
                 nextVariantGrid[bottomLeft] = currentVariantGrid[idx];
                 nextGrid[idx] = 2;
                 nextVariantGrid[idx] = waterVariant;
                 moved = true;
-              } else if (
-                x + 1 < width &&
-                nextGrid[bottomRight] === 0 &&
-                currentGrid[bottomRight] === 0
-              ) {
+              }
+              // Try Right Diagonal
+              if (!moved) {
+                if (x + 1 < width && nextGrid[bottomRight] === 0) {
+                  nextGrid[bottomRight] = 1;
+                  nextVariantGrid[bottomRight] = currentVariantGrid[idx];
+                  moved = true;
+                } else if (x + 1 < width && nextGrid[bottomRight] === 2) {
+                  const waterVariant = nextVariantGrid[bottomRight];
+                  nextGrid[bottomRight] = 1;
+                  nextVariantGrid[bottomRight] = currentVariantGrid[idx];
+                  nextGrid[idx] = 2;
+                  nextVariantGrid[idx] = waterVariant;
+                  moved = true;
+                }
+              }
+            } else {
+              // Try Right Diagonal
+              if (x + 1 < width && nextGrid[bottomRight] === 0) {
                 nextGrid[bottomRight] = 1;
                 nextVariantGrid[bottomRight] = currentVariantGrid[idx];
                 moved = true;
-              } else if (
-                x + 1 < width &&
-                (currentGrid[bottomRight] === 2 || nextGrid[bottomRight] === 2)
-              ) {
-                const waterVariant =
-                  nextGrid[bottomRight] === 2
-                    ? nextVariantGrid[bottomRight]
-                    : currentVariantGrid[bottomRight];
+              } else if (x + 1 < width && nextGrid[bottomRight] === 2) {
+                const waterVariant = nextVariantGrid[bottomRight];
                 nextGrid[bottomRight] = 1;
                 nextVariantGrid[bottomRight] = currentVariantGrid[idx];
                 nextGrid[idx] = 2;
                 nextVariantGrid[idx] = waterVariant;
                 moved = true;
               }
-            } else {
-              if (
-                x + 1 < width &&
-                nextGrid[bottomRight] === 0 &&
-                currentGrid[bottomRight] === 0
-              ) {
-                nextGrid[bottomRight] = 1;
-                nextVariantGrid[bottomRight] = currentVariantGrid[idx];
-                moved = true;
-              } else if (
-                x + 1 < width &&
-                (currentGrid[bottomRight] === 2 || nextGrid[bottomRight] === 2)
-              ) {
-                const waterVariant =
-                  nextGrid[bottomRight] === 2
-                    ? nextVariantGrid[bottomRight]
-                    : currentVariantGrid[bottomRight];
-                nextGrid[bottomRight] = 1;
-                nextVariantGrid[bottomRight] = currentVariantGrid[idx];
-                nextGrid[idx] = 2;
-                nextVariantGrid[idx] = waterVariant;
-                moved = true;
-              } else if (
-                x - 1 >= 0 &&
-                nextGrid[bottomLeft] === 0 &&
-                currentGrid[bottomLeft] === 0
-              ) {
-                nextGrid[bottomLeft] = 1;
-                nextVariantGrid[bottomLeft] = currentVariantGrid[idx];
-                moved = true;
-              } else if (
-                x - 1 >= 0 &&
-                (currentGrid[bottomLeft] === 2 || nextGrid[bottomLeft] === 2)
-              ) {
-                const waterVariant =
-                  nextGrid[bottomLeft] === 2
-                    ? nextVariantGrid[bottomLeft]
-                    : currentVariantGrid[bottomLeft];
-                nextGrid[bottomLeft] = 1;
-                nextVariantGrid[bottomLeft] = currentVariantGrid[idx];
-                nextGrid[idx] = 2;
-                nextVariantGrid[idx] = waterVariant;
-                moved = true;
+              // Try Left Diagonal
+              if (!moved) {
+                if (x - 1 >= 0 && nextGrid[bottomLeft] === 0) {
+                  nextGrid[bottomLeft] = 1;
+                  nextVariantGrid[bottomLeft] = currentVariantGrid[idx];
+                  moved = true;
+                } else if (x - 1 >= 0 && nextGrid[bottomLeft] === 2) {
+                  const waterVariant = nextVariantGrid[bottomLeft];
+                  nextGrid[bottomLeft] = 1;
+                  nextVariantGrid[bottomLeft] = currentVariantGrid[idx];
+                  nextGrid[idx] = 2;
+                  nextVariantGrid[idx] = waterVariant;
+                  moved = true;
+                }
               }
             }
           }
 
           if (moved) continue;
+
+          // 3. Stagnant Fallback
           if (nextGrid[idx] === 0) {
             nextGrid[idx] = 1;
             nextVariantGrid[idx] = currentVariantGrid[idx];
           }
         }
 
-        // Water physics (With Multi-Pixel Fluid Dispersion Rate System)
+        // Water physics
         else if (type === 2) {
-          if (nextGrid[idx] !== 0) continue; // Already displaced upward by heavy sand
+          // If sand already pushed fluid up here this frame, lock it and move on
+          if (nextGrid[idx] !== 0) continue;
 
           const below = (y + 1) * width + x;
           const bottomLeft = (y + 1) * width + (x - 1);
@@ -256,7 +229,7 @@ export class SandEngine {
 
           if (fluidMoved) continue;
 
-          // 3. Fluid Dispersion System: Search up to 5 pixels out horizontally
+          // 3. Fluid Dispersion System
           const dispersionRate = 5;
           let bestX = -1;
           let foundLedge = false;
@@ -265,16 +238,15 @@ export class SandEngine {
           for (let dir of searchDirections) {
             for (let d = 1; d <= dispersionRate; d++) {
               const nx = x + dir * d;
-              if (nx < 0 || nx >= width) break; // Screen edge cut-off
+              if (nx < 0 || nx >= width) break;
 
               const nIdx = y * width + nx;
               if (currentGrid[nIdx] !== 0 || nextGrid[nIdx] !== 0) {
-                break; // Hit solid structural wall or another particle, stop checking this line
+                break;
               }
 
-              bestX = nx; // Valid pool leveling coordinate path found
+              bestX = nx;
 
-              // Check if this horizontal cell has empty air beneath it (prioritize dropping down!)
               if (y + 1 < height) {
                 const nBelow = (y + 1) * width + nx;
                 if (currentGrid[nBelow] === 0 && nextGrid[nBelow] === 0) {
@@ -283,13 +255,13 @@ export class SandEngine {
                 }
               }
             }
-            if (foundLedge) break; // Instantly lock-in to the ledge escape path
+            if (foundLedge) break;
           }
 
           if (bestX !== -1) {
             const targetIdx = y * width + bestX;
             nextGrid[targetIdx] = 2;
-            nextVariantGrid[targetIdx] = currentVariantGrid[idx]; // Shading color persists
+            nextVariantGrid[targetIdx] = currentVariantGrid[idx];
             fluidMoved = true;
           }
 
@@ -304,7 +276,6 @@ export class SandEngine {
       }
     }
 
-    // Parallel dual buffer array state swap
     this.currentGrid.set(this.nextGrid);
     this.currentVariantGrid.set(this.nextVariantGrid);
   }
