@@ -5,6 +5,7 @@ import SandControls from "./SandControls";
 export default function SandSandbox() {
   const canvasRef = useRef(null);
   const [activeElement, setActiveElement] = useState(1);
+  const [eraserSize, setEraserSize] = useState(4); // Radius brush controller
   const engineRef = useRef(null);
   const inputRef = useRef({ isDrawing: false, lastX: null, lastY: null });
 
@@ -12,7 +13,6 @@ export default function SandSandbox() {
     const canvas = canvasRef.current;
     const ctx = canvas.getContext("2d");
 
-    // Instantiating isolated physics class engine model
     const engine = new SandEngine(200, 150, 4);
     engineRef.current = engine;
 
@@ -43,7 +43,7 @@ export default function SandSandbox() {
     return { x, y };
   };
 
-  const drawLine = (x0, y0, x1, y1, element) => {
+  const drawLine = (x0, y0, x1, y1, element, radius) => {
     const dx = Math.abs(x1 - x0);
     const dy = Math.abs(y1 - y0);
     const sx = x0 < x1 ? 1 : -1;
@@ -51,7 +51,20 @@ export default function SandSandbox() {
     let err = dx - dy;
 
     while (true) {
-      engineRef.current.setCell(x0, y0, element);
+      if (element === 0) {
+        // Multi-pixel radial masking array offset for Eraser tool
+        for (let row = -radius; row <= radius; row++) {
+          for (let col = -radius; col <= radius; col++) {
+            if (col * col + row * row <= radius * radius) {
+              engineRef.current.setCell(x0 + col, y0 + row, 0);
+            }
+          }
+        }
+      } else {
+        // Standard single pixel injection for elemental assets
+        engineRef.current.setCell(x0, y0, element);
+      }
+
       if (x0 === x1 && y0 === y1) break;
       const e2 = 2 * err;
       if (e2 > -dy) {
@@ -70,7 +83,7 @@ export default function SandSandbox() {
     const { x, y } = getGridCoords(e);
     inputRef.current.lastX = x;
     inputRef.current.lastY = y;
-    drawLine(x, y, x, y, activeElement);
+    drawLine(x, y, x, y, activeElement, eraserSize);
   };
 
   const handleMove = (e) => {
@@ -82,6 +95,7 @@ export default function SandSandbox() {
       x,
       y,
       activeElement,
+      eraserSize,
     );
     inputRef.current.lastX = x;
     inputRef.current.lastY = y;
@@ -96,7 +110,7 @@ export default function SandSandbox() {
 
   return (
     <div className="flex flex-col items-center justify-center p-4 min-h-screen bg-arcade-bg text-white font-mono">
-      <div className="mb-4 text-center select-none">
+      <div className="mb-6 text-center select-none">
         <h1 className="text-xl tracking-widest text-emerald-400 font-bold mb-1">
           FALLING SAND SANDBOX
         </h1>
@@ -105,25 +119,32 @@ export default function SandSandbox() {
         </p>
       </div>
 
-      <canvas
-        ref={canvasRef}
-        width={800}
-        height={600}
-        onMouseDown={handleStart}
-        onMouseMove={handleMove}
-        onMouseUp={handleEnd}
-        onMouseLeave={handleEnd}
-        onTouchStart={handleStart}
-        onTouchMove={handleMove}
-        onTouchEnd={handleEnd}
-        className="w-full max-w-2xl aspect-[4/3] bg-gray-950 rounded border border-gray-800 shadow-2xl cursor-crosshair touch-none"
-      />
+      {/* Asymmetric layout alignment shell */}
+      <div className="flex flex-col md:flex-row gap-5 items-start justify-center w-full max-w-4xl">
+        <SandControls
+          activeElement={activeElement}
+          setActiveElement={setActiveElement}
+          onClear={handleClear}
+          eraserSize={eraserSize}
+          setEraserSize={setEraserSize}
+        />
 
-      <SandControls
-        activeElement={activeElement}
-        setActiveElement={setActiveElement}
-        onClear={handleClear}
-      />
+        <div className="w-full flex-1">
+          <canvas
+            ref={canvasRef}
+            width={800}
+            height={600}
+            onMouseDown={handleStart}
+            onMouseMove={handleMove}
+            onMouseUp={handleEnd}
+            onMouseLeave={handleEnd}
+            onTouchStart={handleStart}
+            onTouchMove={handleMove}
+            onTouchEnd={handleEnd}
+            className="w-full aspect-[4/3] bg-gray-950 rounded border border-gray-800 shadow-2xl cursor-crosshair touch-none"
+          />
+        </div>
+      </div>
     </div>
   );
 }
