@@ -25,7 +25,12 @@ export class SandEngine {
       10: { name: "DRAIN", state: "SOLID", density: 1001, flammable: false },
       11: { name: "CRUST", state: "SOLID", density: 80, flammable: false },
       12: { name: "MAGMA", state: "LIQUID", density: 70, flammable: false },
-      13: { name: "VOLCANIC_GAS", state: "ENERGY", density: -50, flammable: false },
+      13: {
+        name: "VOLCANIC_GAS",
+        state: "ENERGY",
+        density: -50,
+        flammable: false,
+      },
     };
   }
 
@@ -103,10 +108,11 @@ export class SandEngine {
         if (type === 12) {
           // MAGMA behavior
           // Rule A: Spontaneously release highly buoyant volcanic gas bubbles deep inside magma pools
-          if (Math.random() > 0.996) {
+          if (Math.random() > 0.994) {
             const upwardIdx = (y - 1) * width + x;
             if (y - 1 >= 0 && currentGrid[upwardIdx] === 12) {
-              currentGrid[upwardIdx] = 13; // Exsolve into gas
+              currentGrid[upwardIdx] = 13; // Exsolve into gas inside current frame
+              currentVariantGrid[upwardIdx] = 0;
             }
           }
 
@@ -120,7 +126,7 @@ export class SandEngine {
           for (let n of neighbors) {
             if (n.nx >= 0 && n.nx < width && n.ny >= 0 && n.ny < height) {
               const nIdx = n.ny * width + n.nx;
-              if (currentGrid[nIdx] === 11 && Math.random() > 0.995) {
+              if (currentGrid[nIdx] === 11 && Math.random() > 0.999) {
                 currentGrid[nIdx] = 12; // Melt solid crust into liquid magma
                 currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
               }
@@ -135,22 +141,31 @@ export class SandEngine {
 
           if (y - 1 >= 0) {
             const aboveType = currentGrid[aboveIdx];
-            // Gas is trapped if crust or heavy structures block its upward ascent
+
+            // 1. STABLE LIQUID BUOYANCY: Swap gas upward safely in current grid frame
+            if (aboveType === 12) {
+              currentGrid[aboveIdx] = 13;
+              currentGrid[idx] = 12;
+              currentVariantGrid[aboveIdx] = currentVariantGrid[idx];
+              currentVariantGrid[idx] = 0;
+              continue;
+            }
+
+            // Detect solid blockages
             if (aboveType === 11 || aboveType === 3) {
               isBlocked = true;
             }
           }
 
           if (isBlocked) {
-            // 1. ACCUMULATE PRESSURE: Use variant values as an internal tick tracker
-            currentVariantGrid[idx] += 1;
+            currentVariantGrid[idx] += 1; // Accumulate pressure ticks
 
-            // 2. THE CRITICAL BLOWOUT: Once pressure builds too high, trigger a geological explosion
-            if (currentVariantGrid[idx] > 35) {
-              currentGrid[idx] = 0; // The gas cell bursts into empty atmosphere space
+            // THE EXPLOSIVE BLOWOUT
+            if (currentVariantGrid[idx] > 30) {
+              currentGrid[idx] = 0; // Clear gas core
 
-              const blastRadius = 3; // Structural destruction zone
-              for (let dy = -blastRadius; dy <= 1; dy++) {
+              const blastRadius = 5;
+              for (let dy = -blastRadius; dy <= 2; dy++) {
                 for (let dx = -blastRadius; dx <= blastRadius; dx++) {
                   const bx = x + dx;
                   const by = y + dy;
@@ -159,45 +174,50 @@ export class SandEngine {
                     const bIdx = by * width + bx;
                     const bType = currentGrid[bIdx];
 
-                    // Shatter solid rock crust above into falling volcanic ash/debris rubble (SAND)
-                    if (bType === 11) {
-                      currentGrid[bIdx] = Math.random() > 0.5 ? 0 : 1;
-                      currentVariantGrid[bIdx] = Math.floor(Math.random() * 4);
+                    // Structural containers turn to debris cleanly into next frame
+                    if (bType === 11 || bType === 3) {
+                      nextGrid[bIdx] = Math.random() > 0.75 ? 1 : 0; // Turn to sand or air
+                      nextVariantGrid[bIdx] = 0;
+                      currentGrid[bIdx] = 0; // Clear from current grid pass
                     }
-                    // Fling heavy Magma pixels violently upward into high sky coordinates
+                    // Ballistic Trajectory Logic
                     else if (bType === 12) {
-                      const launchDistance = Math.floor(Math.random() * 15 + 8);
+                      const launchDistance = Math.floor(
+                        Math.random() * 20 + 12,
+                      );
                       const launchY = by - launchDistance;
+
                       if (launchY >= 0) {
                         const launchIdx = launchY * width + bx;
-                        if (currentGrid[launchIdx] === 0) {
-                          currentGrid[launchIdx] = 12; // Teleport magma upward to mimic ballistic velocity
-                          currentVariantGrid[launchIdx] = Math.floor(
+                        if (
+                          currentGrid[launchIdx] === 0 &&
+                          nextGrid[launchIdx] === 0
+                        ) {
+                          nextGrid[launchIdx] = 12; // Project magma directly into next grid
+                          nextVariantGrid[launchIdx] = Math.floor(
                             Math.random() * 4,
                           );
                         }
                       }
-                      currentGrid[bIdx] = 0; // Vaporize the original slot to clear path pressure
+                      currentGrid[bIdx] = 0; // Clear original cell position cleanly
                     }
                   }
                 }
               }
-              continue; // End frame calculation early for this exploded particle
+              continue;
             }
           } else {
-            // If not blocked, naturally decay built-up pressure so free bubbles don't randomly pop
-            if (currentVariantGrid[idx] > 0) {
-              currentVariantGrid[idx]--;
-            }
+            if (currentVariantGrid[idx] > 0) currentVariantGrid[idx]--;
 
-            // 3. STEADY SURFACE VENTING: If it naturally breaks free into open AIR
+            // 3. STEADY NATURAL SURFACE VENTING
             if (y - 1 >= 0 && currentGrid[aboveIdx] === 0) {
-              currentGrid[idx] = 0; // Safely dissolve gas bubble
+              currentGrid[idx] = 0;
               const belowIdx = (y + 1) * width + x;
-              // Throw a tiny splat of lava upwards to mimic boiling magma surface bubbles
               if (y + 1 < height && currentGrid[belowIdx] === 12) {
-                currentGrid[aboveIdx] = 12;
-                currentGrid[belowIdx] = 0;
+                if (currentGrid[aboveIdx] === 0) {
+                  nextGrid[aboveIdx] = 12;
+                  currentGrid[belowIdx] = 0;
+                }
               }
               continue;
             }
@@ -207,14 +227,13 @@ export class SandEngine {
         // --- STEAM LIFE CYCLE DISPERSION ---
         if (type === 8) {
           if (Math.random() > 0.96) {
-            currentGrid[idx] = 0; // Slowly condenses back into background atmosphere
+            currentGrid[idx] = 0;
             continue;
           }
         }
 
         // --- AUTOMATED NODE KINETICS ---
         if (type === 9) {
-          // SPOUT node infinitely generates water below it
           if (y + 1 < height) {
             const bIdx = (y + 1) * width + x;
             if (currentGrid[bIdx] === 0) {
@@ -224,7 +243,6 @@ export class SandEngine {
           }
         }
         if (type === 10) {
-          // DRAIN node completely vaporizes elements dropping onto it
           if (y - 1 >= 0) {
             const aIdx = (y - 1) * width + x;
             if (
@@ -259,11 +277,9 @@ export class SandEngine {
               if (this.PROPERTIES[nType].flammable) {
                 currentGrid[nIdx] = 6;
                 currentVariantGrid[nIdx] = Math.floor(Math.random() * 4);
-              }
-              // REACTION REMAP: Fire + Water -> Evaporates into interactive STEAM vapor cloud
-              else if (nType === 2) {
+              } else if (nType === 2) {
                 currentGrid[idx] = 0;
-                currentGrid[nIdx] = 8; // Boil water cell into steam
+                currentGrid[nIdx] = 8;
                 break;
               }
             }
@@ -287,7 +303,7 @@ export class SandEngine {
               if (nType === 1 || nType === 7 || nType === 3) {
                 currentGrid[nIdx] = 0;
                 if (Math.random() > 0.4) {
-                  currentGrid[idx] = 8; // Chemical decomposition converts acid to steam fumes
+                  currentGrid[idx] = 8;
                   break;
                 }
               } else if (nType === 2) {
@@ -326,10 +342,25 @@ export class SandEngine {
         const idx = y * width + x;
         const type = currentGrid[idx];
 
-        // Skip background air, static architecture nodes, or frozen entities
-        if (type === 0 || type === 3 || type === 7 || type === 9 || type === 10)
+        if (
+          type === 0 ||
+          type === 3 ||
+          type === 7 ||
+          type === 9 ||
+          type === 10 ||
+          type === 11
+        )
           continue;
+
+        // If an explosion already mapped something here, preserve it and skip
         if (nextGrid[idx] !== 0) continue;
+
+        // Commit Volcanic Gas that survived or naturally moved to its stable location
+        if (type === 13) {
+          nextGrid[idx] = type;
+          nextVariantGrid[idx] = currentVariantGrid[idx];
+          continue;
+        }
 
         const state = this.PROPERTIES[type].state;
         const currentDensity = this.PROPERTIES[type].density;
@@ -407,7 +438,8 @@ export class SandEngine {
           }
 
           if (!moved && state === "LIQUID") {
-            const dispersionRate = type === 5 ? 2 : 5;
+            // Make Magma flow tightly and viscously (dispersion rate = 1), regular liquids spread faster (5)
+            const dispersionRate = type === 12 ? 1 : type === 5 ? 2 : 5;
             let bestX = -1;
             let foundLedge = false;
             const flowLeftFirst = Math.random() > 0.5;
@@ -464,7 +496,7 @@ export class SandEngine {
           }
         }
 
-        // --- CATEGORY B: UPWARD FLOATERS (Gases/Thermal Energy Networks like Fire & Steam) ---
+        // --- CATEGORY B: UPWARD FLOATERS (Gases/Thermal Energy) ---
         else if (state === "ENERGY") {
           const above = (y - 1) * width + x;
           const topLeft = (y - 1) * width + (x - 1);
